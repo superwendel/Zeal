@@ -38,7 +38,7 @@ MainWindowCallback(HWND Window,
             int Y = Paint.rcPaint.top;
             int Width = Paint.rcPaint.right - Paint.rcPaint.left;
             int Height = Paint.rcPaint.bottom - Paint.rcPaint.top;
-            static DWORD Operation = WHITENESS;            
+            static DWORD Operation = WHITENESS;
             PatBlt(DeviceContext, X, Y, Width, Height, Operation);
             if(Operation == WHITENESS)
             {
@@ -57,7 +57,7 @@ MainWindowCallback(HWND Window,
             Result = DefWindowProc(Window, Message, WParam, LParam);
         } break;
     }
-    
+
     return(Result);
 }
 
@@ -68,7 +68,7 @@ WinMain(HINSTANCE Instance,
         int ShowCode)
 {
     WNDCLASS WindowClass = {};
-    
+
     // TODO(wendel): Check if HREDRAW/VREDRAW/OWNDC still matter
     WindowClass.lpfnWndProc = MainWindowCallback;
     WindowClass.hInstance = Instance;
@@ -78,19 +78,19 @@ WinMain(HINSTANCE Instance,
     if(RegisterClassA(&WindowClass))
     {
         HWND WindowHandle =
-            CreateWindowExA(
-                0,
-                WindowClass.lpszClassName,
-                "Zeal",
-                WS_OVERLAPPEDWINDOW|WS_VISIBLE,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                0,
-                0,
-                Instance,
-                0);
+                CreateWindowExA(
+                        0,
+                        WindowClass.lpszClassName,
+                        "Zeal",
+                        WS_OVERLAPPEDWINDOW|WS_VISIBLE,
+                        CW_USEDEFAULT,
+                        CW_USEDEFAULT,
+                        CW_USEDEFAULT,
+                        CW_USEDEFAULT,
+                        0,
+                        0,
+                        Instance,
+                        0);
         if(WindowHandle)
         {
             for(;;)
@@ -117,6 +117,6 @@ WinMain(HINSTANCE Instance,
     {
         // TODO(wendel): Logging
     }
-    
+
     return(0);
 }
