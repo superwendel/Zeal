@@ -1,176 +1,52 @@
-#include <windows.h>
 
-#define internal static 
-#define local_persist static 
-#define global_variable static
+#include "zeal.h"
 
-// TODO(wendel): This is a global for now.
-global_variable bool Running;
-
-global_variable BITMAPINFO BitmapInfo;
-global_variable void *BitmapMemory;
-global_variable HBITMAP BitmapHandle;
-global_variable HDC BitmapDeviceContext;
-
-internal void
-Win32ResizeDIBSection(int Width, int Height)
+internal void GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
 {
-    // TODO(wendel): Bulletproof this.
-    // Maybe don't free first, free after, then free first if that fails.
+    local_persist real32 tSine;
+    int16 ToneVolume = 3000;
+    int WavePeriod = SoundBuffer->SamplesPerSecond/ToneHz;
 
-    if(BitmapHandle)
+    int16 *SampleOut = SoundBuffer->Samples;
+    for(int SampleIndex = 0;
+        SampleIndex < SoundBuffer->SampleCount;
+        ++SampleIndex)
     {
-        DeleteObject(BitmapHandle);
-    }
+        real32 SineValue = sinf(tSine);
+        int16 SampleValue = (int16)(SineValue * ToneVolume);
+        *SampleOut++ = SampleValue;
+        *SampleOut++ = SampleValue;
 
-    if(!BitmapDeviceContext)
-    {
-        // TODO(wendel): Should we recreate these under certain special circumstances
-        BitmapDeviceContext = CreateCompatibleDC(0);
+        tSine += 2.0f*Pi32*1.0f/(real32)WavePeriod;
     }
-    
-    BitmapInfo.bmiHeader.biSize = sizeof(BitmapInfo.bmiHeader);
-    BitmapInfo.bmiHeader.biWidth = Width;
-    BitmapInfo.bmiHeader.biHeight = Height;
-    BitmapInfo.bmiHeader.biPlanes = 1;
-    BitmapInfo.bmiHeader.biBitCount = 32;
-    BitmapInfo.bmiHeader.biCompression = BI_RGB;
-
-    // TODO(wendel):  maybe we can just allocate this ourselves?
-    
-    BitmapHandle = CreateDIBSection(
-        BitmapDeviceContext, &BitmapInfo,
-        DIB_RGB_COLORS,
-        &BitmapMemory,
-        0, 0);
 }
 
-internal void
-Win32UpdateWindow(HDC DeviceContext, int X, int Y, int Width, int Height)
+internal void RenderWeirdGradient(game_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset)
 {
-    StretchDIBits(DeviceContext,
-                  X, Y, Width, Height,
-                  X, Y, Width, Height,
-                  BitmapMemory,
-                  &BitmapInfo,
-                  DIB_RGB_COLORS, SRCCOPY);
-}
-
-LRESULT CALLBACK
-Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
-{
-    LRESULT Result = 0;
-
-    switch(Message)
+    uint8 *Row = (uint8 *)Buffer->Memory;    
+    for(int Y = 0;
+        Y < Buffer->Height;
+        ++Y)
     {
-        case WM_SIZE:
+        uint32 *Pixel = (uint32 *)Row;
+        for(int X = 0;
+            X < Buffer->Width;
+            ++X)
         {
-            RECT ClientRect;
-            GetClientRect(Window, &ClientRect);
-            int Width = ClientRect.right - ClientRect.left;
-            int Height = ClientRect.bottom - ClientRect.top;
-            Win32ResizeDIBSection(Width, Height);
-            break;
-        } 
+            uint8 Blue = (X + BlueOffset);
+            uint8 Green = (Y + GreenOffset);
 
-        case WM_CLOSE:
-        {
-            // TODO(wendel): Handle this with a message to the user?
-            Running = false;
-            break;
-        } 
-
-        case WM_ACTIVATEAPP:
-        {
-            OutputDebugStringA("WM_ACTIVATEAPP\n");
-            break;
-        } 
-
-        case WM_DESTROY:
-        {
-            // TODO(wendel): Handle this as an error - recreate window?
-            Running = false;
-            break;
-        } 
-
-        case WM_PAINT:
-        {
-            PAINTSTRUCT Paint;
-            HDC DeviceContext = BeginPaint(Window, &Paint);
-            int X = Paint.rcPaint.left;
-            int Y = Paint.rcPaint.top;
-            int Width = Paint.rcPaint.right - Paint.rcPaint.left;
-            int Height = Paint.rcPaint.bottom - Paint.rcPaint.top;
-            Win32UpdateWindow(DeviceContext, X, Y, Width, Height);
-            EndPaint(Window, &Paint);
-            break;
-        } 
-
-        default:
-        {
-            //OutputDebugStringA("default\n");
-            Result = DefWindowProc(Window, Message, WParam, LParam);
-            break;
-        } 
-    }
-    
-    return(Result);
-}
-
-int CALLBACK
-WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
-{
-    WNDCLASS WindowClass = {};
-    
-    // TODO(wendel): Check if HREDRAW/VREDRAW/OWNDC still matter
-    WindowClass.lpfnWndProc = Win32MainWindowCallback;
-    WindowClass.hInstance = Instance;
-//    WindowClass.hIcon;
-    WindowClass.lpszClassName = "ZealWindowClass";
-
-    if(RegisterClassA(&WindowClass))
-    {
-        HWND WindowHandle =
-            CreateWindowExA(
-                0,
-                WindowClass.lpszClassName,
-                "Zeal",
-                WS_OVERLAPPEDWINDOW|WS_VISIBLE,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                0,
-                0,
-                Instance,
-                0);
-        if(WindowHandle)
-        {
-            Running = true;
-            while(Running)
-            {
-                MSG Message;
-                BOOL MessageResult = GetMessageA(&Message, 0, 0, 0);
-                if(MessageResult > 0)
-                {
-                    TranslateMessage(&Message);
-                    DispatchMessageA(&Message);
-                }
-                else
-                {
-                    break;
-                }
-            }
+            *Pixel++ = ((Green << 8) | Blue);
         }
-        else
-        {
-            // TODO(wendel): Logging
-        }
+        
+        Row += Buffer->Pitch;
     }
-    else
-    {
-        // TODO(wendel): Logging
-    }
-    
-    return(0);
+}
+
+internal void GameUpdateAndRender(game_offscreen_buffer *Buffer, int BlueOffset, 
+                                int GreenOffset, game_sound_output_buffer *SoundBuffer, int ToneHz)
+{
+    // TODO: Allow sample offsets here for more robust platform options
+    GameOutputSound(SoundBuffer, ToneHz);
+    RenderWeirdGradient(Buffer, BlueOffset, GreenOffset);
 }
